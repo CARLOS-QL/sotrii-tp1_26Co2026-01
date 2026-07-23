@@ -79,32 +79,6 @@ Se diseñó e implementó un **Device Driver I2C** sobre FreeRTOS que cumple los
 - Línea 0: texto fijo `"Hola Mundo"`
 - Línea 1: dato hexadecimal incrementando (actualizado por `task_sender`)
 
-**Flujo de arquitectura:**
-
-```
-  task_sender / pcf8574_lcd
-           |
-           |  write_i2c() / read_i2c() / ioctl_i2c()
-           v
-  +---------------------------+
-  |  Funciones de interfaz    |  task_i2c_interface.c
-  |  (API sincrona + WCET)    |
-  +---------------------------+
-           |
-     queue_tx / queue_tx_sync
-     queue_rx_req / queue_rx
-           |
-           v
-  +---------------------------+
-  |  Gatekeeper TX / RX       |  task_i2c.c
-  |  task_i2c_tx / task_i2c_rx|
-  +---------------------------+
-           |
-           |  HAL_I2C (polling)
-           v
-        I2C1  --->  PCF8574  --->  HD44780 (LCD)
-```
-
 **Inicialización relevante:**
 
 1. `app_init()` → `cycle_counter_init()` + `open_i2c(&hi2c1)` **antes** de `osKernelStart()`
@@ -159,63 +133,7 @@ Se diseñó e implementó un **Device Driver I2C** sobre FreeRTOS que cumple los
 
 ---
 
-### 6.3 Estructura del proyecto
-
-```
-sotrii-tp1_01-application/
-├── README.md                          # Carátula del TP
-├── sotrii-tp1_01-application.md       # Este informe (entrega)
-├── docs/
-│   └── assets/
-│       └── live-expressions-wcet.png  # Captura Live Expressions
-├── app/
-│   ├── inc/
-│   │   ├── app.h
-│   │   ├── app_it.h
-│   │   ├── board.h
-│   │   ├── dwt.h
-│   │   ├── logger.h
-│   │   ├── pcf8574_lcd.h              # Driver LCD (cliente I2C)
-│   │   ├── systick.h
-│   │   ├── task_i2c.h
-│   │   ├── task_i2c_attribute.h       # task_i2c_dta_t, colas, IOCTL
-│   │   ├── task_i2c_interface.h       # API + WCET extern
-│   │   ├── task_receiver.h
-│   │   └── task_sender.h
-│   └── src/
-│       ├── app.c                      # app_init, open_i2c, scheduler
-│       ├── app_it.c
-│       ├── freertos.c
-│       ├── logger.c
-│       ├── pcf8574_lcd.c              # LCD PCF8574/HD44780
-│       ├── systick.c
-│       ├── task_i2c.c                 # Gatekeeper TX/RX
-│       ├── task_i2c_interface.c       # API synchronous + WCET
-│       ├── task_receiver.c
-│       └── task_sender.c              # Demo LCD + bench WCET
-├── Core/                              # Código generado CubeMX (HAL, main, i2c)
-├── Drivers/                           # CMSIS + STM32F4 HAL
-└── Debug/                             # Artefactos de compilación
-```
-
-#### Estructura de datos del driver (`task_i2c_attribute.h`)
-
-```c
-typedef struct {
-    uint8_t              device_id;
-    QueueHandle_t        queue_tx;
-    QueueHandle_t        queue_tx_sync;
-    QueueHandle_t        queue_rx_req;
-    QueueHandle_t        queue_rx;
-    TaskHandle_t         task_tx_handle;
-    TaskHandle_t         task_rx_handle;
-    I2C_HandleTypeDef   *h_i2c;
-} task_i2c_dta_t;
-```
-
----
-
-### 6.4 Resultados de las mediciones WCET
+### 6.3 Resultados de las mediciones WCET
 
 **Condiciones de medición:**
 
@@ -279,7 +197,7 @@ g_i2c_if_ioctl_wcet_us
 
 ---
 
-### 6.5 Video de demostración
+### 6.4 Video de demostración
 
 Prueba en video del funcionamiento del sistema (LCD + logs + depuración):
 
@@ -287,7 +205,7 @@ Prueba en video del funcionamiento del sistema (LCD + logs + depuración):
 
 ---
 
-### 6.6 Evidencia — Log de consola
+### 6.5 Evidencia — Log de consola
 
 Salida obtenida durante la sesión de depuración con LCD conectado y respondiendo en **0x27**:
 
@@ -333,7 +251,7 @@ Salida obtenida durante la sesión de depuración con LCD conectado y respondien
 
 ---
 
-### 6.7 Configuración hardware
+### 6.6 Configuración hardware
 
 | Parámetro | Valor |
 |-----------|-------|
@@ -343,15 +261,3 @@ Salida obtenida durante la sesión de depuración con LCD conectado y respondien
 | Velocidad | 100 kHz |
 | Esclavo LCD | PCF8574 @ **0x27** (`LCD_DIR`) |
 | Pinout PCF8574 | Arduino (backlight P3 = `0x08`) |
-
----
-
-## Referencias
-
-- Juan Manuel Cruz – CESE SOTR, demo ETS.
-- [Serial LCD I2C Module – PCF8574](https://alselectro.wordpress.com/2016/05/12/serial-lcd-i2c-module-pcf8574/)
-- STM32F4 HAL I2C, FreeRTOS Queue API.
-
----
-
-*Documento de entrega — Paso 06 completado. Mediciones WCET registradas en consola y Live Expressions con LCD operativo @ 0x27.*
