@@ -52,6 +52,7 @@
 
 #define TASK_SENDER_DEL_ZERO	(pdMS_TO_TICKS(0ul))
 #define TASK_SENDER_DEL_MAX		(pdMS_TO_TICKS(250ul))
+#define TASK_SENDER_WCET_REPORT_EVERY	(20ul)
 
 static BaseType_t s_lcd_ready = pdFALSE;
 
@@ -101,6 +102,12 @@ void task_sender(void *parameters)
 		/* Mostrar dato en linea 1 (linea 0: "Hola Mundo") */
 		g_lcd_dato = (uint8_t)(g_lcd_dato + 1u);
 		lcd_write_hex8_at(&g_pcf8574_lcd, 1u, 0u, "Dato", g_lcd_dato);
+
+		/* Reporte WCET cada ~5 s (visible en consola, ademas de Live Expressions) */
+		if (0u == (g_task_sender_cnt % TASK_SENDER_WCET_REPORT_EVERY))
+		{
+			i2c_if_wcet_report();
+		}
 
     	/* Print out: Wait 250mS */
 		LOGGER_INFO(p_task_sender_wait_250mS);
