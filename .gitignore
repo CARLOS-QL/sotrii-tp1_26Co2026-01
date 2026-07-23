@@ -1,0 +1,23 @@
+# STM32CubeIDE workspace
+.metadata/
+
+# Eclipse / STM32CubeIDE settings
+**/.settings/
+
+# Build folders
+**/Debug/
+**/Release/
+
+# Generated binaries
+*.elf
+*.bin
+*.hex
+*.map
+
+# Temporary files
+*.log
+*.tmp
+
+# OS files
+Thumbs.db
+.DS_Store
