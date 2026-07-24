@@ -8,3 +8,8 @@
 | N° SIU | Apellidos, Nombres   | Fecha    | Deadline |
 | :----: | -------------------- | :------: | :------: |
 | e2614  | QUISPE LOPEZ, CARLOS | 14/07/26 | Semana 4 |
+
+
+## Revisión
+
+Este proyecto fue preparado para revisión mediante Pull Request en la rama `tp1-entrega`.
