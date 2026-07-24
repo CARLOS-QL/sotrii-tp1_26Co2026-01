@@ -270,12 +270,6 @@ La variable **`task_adc_dta.dma_buffer[0]`** es la más directa para observar el
 | `task_adc_dta.dma_buffer[0]` | Última muestra ADC (Live Expression) |
 
 ---
-
-## Referencias
-
-- Patrón gatekeeper + spooler: TP1 Actividad 01 (I2C) y Actividad 02 (UART)
-- Documentación HAL: `stm32f4xx_hal_adc.c`, `stm32f4xx_hal_dma.c`
-- FreeRTOS: `xQueueCreateStatic`, `xQueueOverwrite`, `xSemaphoreCreateBinaryStatic`
 - Video de demostración: [adc.mp4](https://drive.google.com/file/d/1TkHStvvY1bHbnLmzCB7HiIS0XX9FDQvs/view?usp=sharing)
 
 ---
