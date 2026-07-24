@@ -35,6 +35,7 @@
 /********************** inclusions *******************************************/
 /* Project includes */
 #include "main.h"
+#include "cmsis_os.h"
 
 /* Demo includes */
 #include "logger.h"
@@ -42,10 +43,10 @@
 
 /* Application & Tasks includes */
 #include "board.h"
+#include "task_uart_attribute.h"
+#include "task_uart_interface.h"
 
 /********************** macros and definitions *******************************/
-#define HAL_XXXX_CALLBACK_CNT_INI			0ul
-#define HAL_XXXX_CALLBACK_RUNTIME_US_INI	0ul
 
 /********************** internal data declaration ****************************/
 
@@ -61,14 +62,12 @@ volatile uint32_t hal_xxxx_callback_runtime_us;
 /********************** external functions definition ************************/
 void app_it_init(void)
 {
-	/* Init to be done */
-
 	/* Protect shared resource */
 	__asm("CPSID i");	/* disable interrupts */
 
 	hal_xxxx_callback_flag = false;
-	hal_xxxx_callback_cnt = HAL_XXXX_CALLBACK_CNT_INI;
-	hal_xxxx_callback_runtime_us = HAL_XXXX_CALLBACK_RUNTIME_US_INI;
+	hal_xxxx_callback_cnt = 0ul;
+	hal_xxxx_callback_runtime_us = 0ul;
 
 	__asm("CPSIE i");	/* enable interrupts */
 }
@@ -80,7 +79,6 @@ void app_it_init(void)
   */
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-	// Check which version of the gpio triggered this callback
 	if (GPIO_Pin == BTN_A_PIN)
 	{
 		/* Work to be done. */
@@ -95,13 +93,76 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
   */
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
-	// Check which version of the uart triggered this callback
 	if (huart->Instance == USART2)
 	{
+		BaseType_t higher_priority_woken = pdFALSE;
+
 		hal_xxxx_callback_flag = true;
 		hal_xxxx_callback_cnt++;
 
+		cycle_counter_reset();
+		uart_tx_cplt_notify_from_isr(&higher_priority_woken);
 		hal_xxxx_callback_runtime_us = cycle_counter_get_time_us();
+
+		if (HAL_UART_STATE_BUSY_RX != huart->RxState)
+		{
+			if (HAL_OK == HAL_UART_Receive_IT(huart, &task_uart_dta.rx_byte, 1u))
+			{
+				task_uart_dta.rx_armed = pdTRUE;
+			}
+		}
+
+		portYIELD_FROM_ISR(higher_priority_woken);
+	}
+}
+
+/**
+  * @brief  Rx Transfer completed callbacks.
+  * @param  huart  Pointer to a UART_HandleTypeDef structure that contains
+  *                the configuration information for the specified UART module.
+  * @retval None
+  */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+	if (huart->Instance == USART2)
+	{
+		BaseType_t higher_priority_woken = pdFALSE;
+
+		uart_rx_cplt_notify_from_isr(task_uart_dta.rx_byte, &higher_priority_woken);
+
+		if (HAL_OK == HAL_UART_Receive_IT(huart, &task_uart_dta.rx_byte, 1u))
+		{
+			task_uart_dta.rx_armed = pdTRUE;
+		}
+		else
+		{
+			task_uart_dta.rx_armed = pdFALSE;
+		}
+
+		portYIELD_FROM_ISR(higher_priority_woken);
+	}
+}
+
+/**
+  * @brief  UART error callbacks.
+  * @param  huart  Pointer to a UART_HandleTypeDef structure that contains
+  *                the configuration information for the specified UART module.
+  * @retval None
+  */
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
+{
+	if (huart->Instance == USART2)
+	{
+		BaseType_t higher_priority_woken = pdFALSE;
+
+		__HAL_UART_CLEAR_OREFLAG(huart);
+		__HAL_UART_CLEAR_NEFLAG(huart);
+		__HAL_UART_CLEAR_FEFLAG(huart);
+
+		task_uart_dta.rx_armed = pdFALSE;
+		uart_error_notify_from_isr(&higher_priority_woken);
+
+		portYIELD_FROM_ISR(higher_priority_woken);
 	}
 }
 

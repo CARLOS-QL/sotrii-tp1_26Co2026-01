@@ -163,7 +163,18 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
     HAL_NVIC_SetPriority(USART2_IRQn, 5, 0);
     HAL_NVIC_EnableIRQ(USART2_IRQn);
     /* USER CODE BEGIN USART2_MspInit 1 */
+    {
+      GPIO_InitTypeDef GPIO_InitStruct_Rx = {0};
 
+      GPIO_InitStruct_Rx.Pin = USART_RX_Pin;
+      GPIO_InitStruct_Rx.Mode = GPIO_MODE_AF_PP;
+      GPIO_InitStruct_Rx.Pull = GPIO_PULLUP;
+      GPIO_InitStruct_Rx.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+      GPIO_InitStruct_Rx.Alternate = GPIO_AF7_USART2;
+      HAL_GPIO_Init(USART_RX_GPIO_Port, &GPIO_InitStruct_Rx);
+
+      HAL_NVIC_SetPriority(USART2_IRQn, 6, 0);
+    }
     /* USER CODE END USART2_MspInit 1 */
 
   }

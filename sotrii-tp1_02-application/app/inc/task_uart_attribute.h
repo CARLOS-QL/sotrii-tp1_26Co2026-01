@@ -41,17 +41,88 @@ extern "C" {
 #endif
 
 /********************** inclusions *******************************************/
+#include "stm32f4xx_hal.h"
+#include "FreeRTOS.h"
+#include "task.h"
+#include "queue.h"
+#include "semphr.h"
 
 /********************** macros ***********************************************/
+#define TASK_UART_QUEUE_TX_IN_LEN		(16u)
+#define TASK_UART_QUEUE_TX_OUT_LEN		(16u)
+#define TASK_UART_QUEUE_RX_IN_LEN		(8u)
+#define TASK_UART_QUEUE_RX_OUT_LEN		(32u)
 
 /********************** typedef **********************************************/
-/* Structure of Task */
+/* UART Device Driver - data structures (Paso 06)
+ * Patron Gatekeeper: colas Input/Output Spooler separan la API del UART.
+ * Patron Asynchronous: la API encola y retorna sin esperar la transferencia.
+ * Periferico: HAL_UART_Transmit_IT / HAL_UART_Receive_IT (interrupciones).
+ * Memoria: buffers del spooler asignados con pvPortMalloc (dinamica). */
 
+typedef enum
+{
+	UART_IOCTL_FLUSH_RX = 0,
+	UART_IOCTL_FLUSH_TX,
+	UART_IOCTL_ABORT_TX,
+	UART_IOCTL_ARM_RX
+} task_uart_ioctl_cmd_t;
 
-/* Structure of UART Tx */
+typedef enum
+{
+	UART_SPOOLER_STATUS_OK = 0,
+	UART_SPOOLER_STATUS_ERROR,
+	UART_SPOOLER_STATUS_BUSY
+} task_uart_spooler_status_t;
 
+typedef enum
+{
+	UART_RX_CMD_ARM = 0,
+	UART_RX_CMD_FLUSH
+} task_uart_rx_cmd_t;
+
+/* Bloque dinamico del spooler (buffer en heap FreeRTOS) */
+typedef struct
+{
+	uint8_t *	p_buffer;
+	uint16_t	length;
+} task_uart_spooler_dta_t;
+
+/* Output spooler TX: estado de finalizacion (async) */
+typedef struct
+{
+	task_uart_spooler_status_t	status;
+	uint16_t					bytes_done;
+} task_uart_tx_out_dta_t;
+
+/* Input spooler RX: comandos al gatekeeper RX */
+typedef struct
+{
+	task_uart_rx_cmd_t	cmd;
+} task_uart_rx_in_dta_t;
+
+/* Instancia del device driver */
+typedef struct
+{
+	UART_HandleTypeDef *	device_id;
+
+	TaskHandle_t			task_tx;
+	QueueHandle_t			queue_tx_in;
+	QueueHandle_t			queue_tx_out;
+
+	TaskHandle_t			task_rx;
+	QueueHandle_t			queue_rx_in;
+	QueueHandle_t			queue_rx_out;
+
+	SemaphoreHandle_t		sem_tx_done;
+
+	task_uart_spooler_dta_t	tx_active;
+	uint8_t					rx_byte;
+	BaseType_t				rx_armed;
+} task_uart_dta_t;
 
 /********************** external data declaration ****************************/
+extern task_uart_dta_t task_uart_dta;
 
 /********************** external functions declaration ***********************/
 

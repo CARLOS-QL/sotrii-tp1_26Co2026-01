@@ -122,12 +122,12 @@ void app_init(void)
     /* Check the thread was created successfully. */
     configASSERT(pdPASS == ret);
 
-    /* Task Receiver thread at priority 1 */
+    /* Task Receiver thread at priority 2 (comandos UART) */
     ret = xTaskCreate(task_receiver,					/* Pointer to the function thats implement the task. */
 					  "Task Receiver",					/* Text name for the task. This is to facilitate debugging only. */
-					  (2 * configMINIMAL_STACK_SIZE),	/* Stack depth in words. */
+					  (3 * configMINIMAL_STACK_SIZE),	/* Stack depth in words. */
 					  NULL,								/* We are not using the task parameter. */
-					  (tskIDLE_PRIORITY + 1ul),			/* This task will run at priority 1. */
+					  (tskIDLE_PRIORITY + 2ul),			/* Prioridad mayor que gatekeepers UART. */
 					  &h_task_receiver);				/* We are using a variable as task handle. */
 
     /* Check the thread was created successfully. */
@@ -143,14 +143,14 @@ void app_init(void)
      * one task in this state at the moment), but the currently run task ID
      * is stored in variable pxCurrentTCB */
 
-    /* UART Device Diver Init */
+	/* Init Cycle Counter (requerido para medicion WCET del driver UART) */
+	cycle_counter_init();
+
+    /* UART Device Driver Init - Gatekeeper TX/RX */
     open_uart(&huart2);
 
     /* Application Interrupts Init */
 	app_it_init();
-
-	/* Init Cycle Counter */
-	cycle_counter_init();
 }
 
 /********************** end of file ******************************************/

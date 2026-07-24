@@ -51,6 +51,7 @@
 
 #define TASK_SENDER_DEL_ZERO	(pdMS_TO_TICKS(0ul))
 #define TASK_SENDER_DEL_MAX		(pdMS_TO_TICKS(250ul))
+#define TASK_SENDER_WCET_REPORT_EVERY	(20ul)
 
 /********************** internal data declaration ****************************/
 
@@ -66,6 +67,9 @@ uint32_t g_task_sender_cnt;
 /* Task thread */
 void task_sender(void *parameters)
 {
+	/* Prevent unused argument(s) compilation warning */
+	UNUSED(parameters);
+
 	/*  Declare & Initialize Task Function variables */
 	g_task_sender_cnt = G_TASK_SENDER_CNT_INI;
 
@@ -78,6 +82,11 @@ void task_sender(void *parameters)
 	{
 		/* Update Task Counter */
 		g_task_sender_cnt++;
+
+		if (0u == (g_task_sender_cnt % TASK_SENDER_WCET_REPORT_EVERY))
+		{
+			uart_if_wcet_report();
+		}
 
     	/* Print out: Wait 250mS */
 		LOGGER_INFO(p_task_sender_wait_250mS);

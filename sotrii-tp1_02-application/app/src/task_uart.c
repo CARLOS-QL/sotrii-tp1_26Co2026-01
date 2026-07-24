@@ -46,95 +46,131 @@
 #include "app.h"
 #include "app_it.h"
 #include "task_uart_attribute.h"
+#include "task_uart_interface.h"
 
 /********************** macros and definitions *******************************/
-#define G_TASK_XXXX_CNT_INI	0ul
-#define G_TASK_XXXX_RUNTIME_US_INI	0ul
-
-#define TASK_XXXX_DEL_ZERO	(pdMS_TO_TICKS(0ul))
-#define TASK_XXXX_DEL_MAX	(pdMS_TO_TICKS(250ul))
-
-/********************** internal data declaration ****************************/
+#define G_TASK_UART_CNT_INI			0ul
+#define G_TASK_UART_RUNTIME_US_INI	0ul
 
 /********************** internal data declaration ****************************/
 
 /********************** internal functions declaration ***********************/
-void task_uart_tx(void *parameters);
-void task_uart_rx(void *parameters);
 
 /********************** internal data definition *****************************/
-const char *p_task_uart_tx_wait_250mS	= "   ==> Task UART TX - Wait:   250mS";
-const char *p_task_uart_rx_wait_250mS	= "   ==> Task UART RX - Wait:   250mS";
 
 /********************** external data declaration ****************************/
-uint32_t g_task_xxxx_tx_cnt;
-uint32_t g_task_xxxx_tx_runtime_us;
+uint32_t g_task_uart_tx_cnt;
+uint32_t g_task_uart_tx_runtime_us;
 
-uint32_t g_task_xxxx_rx_cnt;
-uint32_t g_task_xxxx_rx_runtime_us;
+uint32_t g_task_uart_rx_cnt;
+uint32_t g_task_uart_rx_runtime_us;
 
 /********************** external functions definition ************************/
-/* Task UART TX thread */
+/*
+ * Gatekeeper TX: unica tarea autorizada a transmitir por USART2.
+ * Lee del input spooler, transfiere con HAL_UART_Transmit_IT y
+ * publica el estado en el output spooler (patron Asynchronous).
+ */
 void task_uart_tx(void *parameters)
 {
-	/* Prevent unused argument(s) compilation warning */
-	UNUSED(parameters);
+	HAL_StatusTypeDef hal_status;
+	task_uart_dta_t *p_task_uart_dta = (task_uart_dta_t *)parameters;
+	task_uart_tx_out_dta_t tx_out_dta;
 
-	/*  Declare & Initialize Task Function variables */
-	g_task_xxxx_tx_cnt = G_TASK_XXXX_CNT_INI;
-	g_task_xxxx_tx_runtime_us = G_TASK_XXXX_RUNTIME_US_INI;
+	g_task_uart_tx_cnt = G_TASK_UART_CNT_INI;
+	g_task_uart_tx_runtime_us = G_TASK_UART_RUNTIME_US_INI;
 
-	/* Print out: Task Initialized */
 	LOGGER_INFO(" ");
 	LOGGER_INFO("%s is running - Tick [mS] = %3d", pcTaskGetName(NULL), (int)xTaskGetTickCount());
 
-	/* As per most tasks, this task is implemented in an infinite loop. */
 	for (;;)
 	{
-		/* Update Task Counter */
-		g_task_xxxx_tx_cnt++;
+		g_task_uart_tx_cnt++;
+
+		xQueueReceive(p_task_uart_dta->queue_tx_in,
+					  &p_task_uart_dta->tx_active, portMAX_DELAY);
 
 		cycle_counter_reset();
 
-		HAL_GPIO_TogglePin(LED_A_PORT, LED_A_PIN);
+		while (pdTRUE == xSemaphoreTake(p_task_uart_dta->sem_tx_done, 0))
+		{
+			/* descartar eventos previos del semaforo TX */
+		}
 
-		g_task_xxxx_tx_runtime_us = cycle_counter_get_time_us();
+		hal_status = HAL_UART_Transmit_IT(p_task_uart_dta->device_id,
+										  p_task_uart_dta->tx_active.p_buffer,
+										  p_task_uart_dta->tx_active.length);
 
-    	/* Print out: Wait 250mS */
-		LOGGER_INFO(p_task_uart_tx_wait_250mS);
-		vTaskDelay(TASK_XXXX_DEL_MAX);
+		if (HAL_OK == hal_status)
+		{
+			(void)xSemaphoreTake(p_task_uart_dta->sem_tx_done, portMAX_DELAY);
+			tx_out_dta.status = UART_SPOOLER_STATUS_OK;
+			tx_out_dta.bytes_done = p_task_uart_dta->tx_active.length;
+		}
+		else
+		{
+			tx_out_dta.status = UART_SPOOLER_STATUS_ERROR;
+			tx_out_dta.bytes_done = 0u;
+		}
+
+		(void)xQueueSend(p_task_uart_dta->queue_tx_out, &tx_out_dta, 0);
+
+		if (NULL != p_task_uart_dta->tx_active.p_buffer)
+		{
+			vPortFree(p_task_uart_dta->tx_active.p_buffer);
+			p_task_uart_dta->tx_active.p_buffer = NULL;
+			p_task_uart_dta->tx_active.length = 0u;
+		}
+
+		g_task_uart_tx_runtime_us = cycle_counter_get_time_us();
 	}
 }
 
-/* Task UART RX thread */
+/*
+ * Gatekeeper RX: arma la recepcion por interrupcion y atiende
+ * comandos del input spooler (flush / re-arm).
+ */
 void task_uart_rx(void *parameters)
 {
-	/* Prevent unused argument(s) compilation warning */
-	UNUSED(parameters);
+	task_uart_dta_t *p_task_uart_dta = (task_uart_dta_t *)parameters;
+	task_uart_rx_in_dta_t rx_cmd;
+	uint8_t rx_dummy;
 
-	/*  Declare & Initialize Task Function variables */
-	g_task_xxxx_rx_cnt = G_TASK_XXXX_CNT_INI;
-	g_task_xxxx_rx_runtime_us = G_TASK_XXXX_RUNTIME_US_INI;
+	g_task_uart_rx_cnt = G_TASK_UART_CNT_INI;
+	g_task_uart_rx_runtime_us = G_TASK_UART_RUNTIME_US_INI;
 
-	/* Print out: Task Initialized */
 	LOGGER_INFO(" ");
 	LOGGER_INFO("%s is running - Tick [mS] = %3d", pcTaskGetName(NULL), (int)xTaskGetTickCount());
 
-	/* As per most tasks, this task is implemented in an infinite loop. */
+	(void)ioctl_uart(p_task_uart_dta->device_id, UART_IOCTL_ARM_RX);
+
 	for (;;)
 	{
-		/* Update Task Counter */
-		g_task_xxxx_rx_cnt++;
+		g_task_uart_rx_cnt++;
+
+		xQueueReceive(p_task_uart_dta->queue_rx_in, &rx_cmd, portMAX_DELAY);
 
 		cycle_counter_reset();
 
-		HAL_GPIO_TogglePin(LED_A_PORT, LED_A_PIN);
+		switch (rx_cmd.cmd)
+		{
+			case UART_RX_CMD_ARM:
+				(void)ioctl_uart(p_task_uart_dta->device_id, UART_IOCTL_ARM_RX);
+				break;
 
-		g_task_xxxx_rx_runtime_us = cycle_counter_get_time_us();
+			case UART_RX_CMD_FLUSH:
+				while (pdPASS == xQueueReceive(p_task_uart_dta->queue_rx_out,
+											   &rx_dummy, 0))
+				{
+					/* vaciar output spooler RX */
+				}
+				break;
 
-    	/* Print out: Wait 250mS */
-		LOGGER_INFO(p_task_uart_rx_wait_250mS);
-		vTaskDelay(TASK_XXXX_DEL_MAX);
+			default:
+				break;
+		}
+
+		g_task_uart_rx_runtime_us = cycle_counter_get_time_us();
 	}
 }
 
