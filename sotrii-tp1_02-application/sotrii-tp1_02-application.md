@@ -321,4 +321,4 @@ Salida obtenida durante la sesión de depuración con driver UART operativo y co
 
 ---
 
-**Fin del Paso 06 – Actividad 02**
+
