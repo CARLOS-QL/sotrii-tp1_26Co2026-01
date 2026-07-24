@@ -41,21 +41,38 @@ extern "C" {
 #endif
 
 /********************** inclusions *******************************************/
+#include "task_adc_attribute.h"
 
 /********************** macros ***********************************************/
 
 /********************** typedef **********************************************/
 
 /********************** external data declaration ****************************/
+extern uint32_t g_adc_if_open_wcet_us;
+extern uint32_t g_adc_if_release_wcet_us;
+extern uint32_t g_adc_if_write_wcet_us;
+extern uint32_t g_adc_if_read_wcet_us;
+extern uint32_t g_adc_if_ioctl_wcet_us;
+extern volatile uint32_t g_adc_dma_isr_cnt;
 
 /********************** external functions declaration ***********************/
 extern void open_adc(ADC_HandleTypeDef *h_adc_device);
 extern void release_adc(ADC_HandleTypeDef *h_adc_device);
 
-extern void write_adc(ADC_HandleTypeDef *h_adc_device);
-extern void read_adc(ADC_HandleTypeDef *h_adc_device);
+extern HAL_StatusTypeDef write_adc(ADC_HandleTypeDef *h_adc_device);
 
-extern void ioctl_adc(ADC_HandleTypeDef *h_adc_device);
+extern BaseType_t read_adc(ADC_HandleTypeDef *h_adc_device, uint16_t *p_value);
+
+extern BaseType_t read_adc_wait(ADC_HandleTypeDef *h_adc_device,
+								uint16_t *p_value,
+								TickType_t timeout_ticks);
+
+extern HAL_StatusTypeDef ioctl_adc(ADC_HandleTypeDef *h_adc_device,
+								   task_adc_ioctl_cmd_t cmd);
+
+extern void adc_if_wcet_report(void);
+
+extern void adc_dma_cplt_notify_from_isr(BaseType_t *p_higher_priority_woken);
 
 /********************** End of CPP guard *************************************/
 #ifdef __cplusplus

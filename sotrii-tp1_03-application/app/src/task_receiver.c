@@ -51,6 +51,9 @@
 
 #define TASK_RECEIVER_DEL_ZERO		(pdMS_TO_TICKS(0ul))
 #define TASK_RECEIVER_DEL_MAX		(pdMS_TO_TICKS(250ul))
+#define TASK_RECEIVER_WCET_REPORT_EVERY	(20ul)
+
+#define ADC_MAX_VALUE_12B			(4095u)
 
 /********************** internal data declaration ****************************/
 
@@ -66,18 +69,46 @@ uint32_t g_task_receiver_cnt;
 /* Task thread */
 void task_receiver(void *parameters)
 {
+	uint16_t adc_raw = 0u;
+	uint32_t adc_percent = 0u;
+	BaseType_t adc_ok = pdFALSE;
+
+	/* Prevent unused argument(s) compilation warning */
+	UNUSED(parameters);
+
 	/*  Declare & Initialize Task Function variables */
 	g_task_receiver_cnt = G_TASK_RECEIVER_CNT_INI;
 
 	/* Print out: Task Initialized */
 	LOGGER_INFO(" ");
 	LOGGER_INFO("  %s is running - Tick [mS] = %lu", pcTaskGetName(NULL), xTaskGetTickCount());
+	LOGGER_INFO("  Potenciometro en PA0 (A0) - ADC1 CH0 - LIO + DMA");
 
 	/* As per most tasks, this task is implemented in an infinite loop. */
 	for (;;)
     {
 		/* Update Task Counter */
 		g_task_receiver_cnt++;
+
+		if (0u == (g_task_receiver_cnt % TASK_RECEIVER_WCET_REPORT_EVERY))
+		{
+			adc_if_wcet_report();
+		}
+
+		(void)ioctl_adc(&hadc1, ADC_IOCTL_FLUSH);
+		(void)write_adc(&hadc1);
+		adc_ok = read_adc_wait(&hadc1, &adc_raw, pdMS_TO_TICKS(100u));
+
+		if (pdTRUE == adc_ok)
+		{
+			adc_percent = ((uint32_t)adc_raw * 100u) / ADC_MAX_VALUE_12B;
+			LOGGER_INFO("  ADC raw=%4u  (~%2lu%%)  cnt=%lu",
+						adc_raw, adc_percent, g_task_receiver_cnt);
+		}
+		else
+		{
+			LOGGER_INFO("  ADC sin muestra nueva - cnt=%lu", g_task_receiver_cnt);
+		}
 
     	/* Print out: Wait 250mS */
 		LOGGER_INFO(p_task_receiver_wait_250mS);

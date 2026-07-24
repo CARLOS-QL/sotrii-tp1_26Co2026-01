@@ -35,6 +35,7 @@
 /********************** inclusions *******************************************/
 /* Project includes */
 #include "main.h"
+#include "cmsis_os.h"
 
 /* Demo includes */
 #include "logger.h"
@@ -42,6 +43,8 @@
 
 /* Application & Tasks includes */
 #include "board.h"
+#include "task_adc_attribute.h"
+#include "task_adc_interface.h"
 
 /********************** macros and definitions *******************************/
 #define HAL_XXXX_CALLBACK_CNT_INI			0ul
@@ -58,14 +61,9 @@ volatile bool hal_xxxx_callback_flag;
 volatile uint32_t hal_xxxx_callback_cnt;
 volatile uint32_t hal_xxxx_callback_runtime_us;
 
-volatile uint32_t hal_xxxx_buffer;
-volatile uint32_t hal_xxxx_index;
-
 /********************** external functions definition ************************/
 void app_it_init(void)
 {
-	/* Init to be done */
-
 	/* Protect shared resource */
 	__asm("CPSID i");	/* disable interrupts */
 
@@ -83,7 +81,6 @@ void app_it_init(void)
   */
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-	// Check which version of the gpio triggered this callback
 	if (GPIO_Pin == BTN_A_PIN)
 	{
 		/* Work to be done. */
@@ -98,13 +95,18 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
   */
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 {
-	// Check which version of the adc triggered this callback
 	if (hadc->Instance == ADC1)
 	{
+		BaseType_t higher_priority_woken = pdFALSE;
+
 		hal_xxxx_callback_flag = true;
 		hal_xxxx_callback_cnt++;
 
+		cycle_counter_reset();
+		adc_dma_cplt_notify_from_isr(&higher_priority_woken);
 		hal_xxxx_callback_runtime_us = cycle_counter_get_time_us();
+
+		portYIELD_FROM_ISR(higher_priority_woken);
 	}
 }
 

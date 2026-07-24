@@ -131,14 +131,14 @@ void app_init(void)
      * one task in this state at the moment), but the currently run task ID
      * is stored in variable pxCurrentTCB */
 
-    /* ADC Device Diver Init */
+	/* Init Cycle Counter (antes de open_adc para WCET) */
+	cycle_counter_init();
+
+    /* ADC Device Driver Init */
     open_adc(&hadc1);
 
     /* Application Interrupts Init */
 	app_it_init();
-
-	/* Init Cycle Counter */
-	cycle_counter_init();
 }
 
 /********************** end of file ******************************************/

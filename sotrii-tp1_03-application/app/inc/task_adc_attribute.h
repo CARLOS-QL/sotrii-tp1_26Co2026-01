@@ -41,17 +41,71 @@ extern "C" {
 #endif
 
 /********************** inclusions *******************************************/
+#include "stm32f4xx_hal.h"
+#include "FreeRTOS.h"
+#include "task.h"
+#include "queue.h"
+#include "semphr.h"
 
 /********************** macros ***********************************************/
+#define TASK_ADC_QUEUE_IN_LEN		(4u)
+#define TASK_ADC_QUEUE_OUT_LEN		(1u)
+
+#define TASK_ADC_DMA_BUFFER_LEN		(1u)
 
 /********************** typedef **********************************************/
-/* Structure of Task */
+/* ADC Device Driver - data structures (Paso 06)
+ * Patron Gatekeeper: colas Input/Output Spooler separan la API del ADC.
+ * Patron Latest Input Only (LIO): output spooler profundidad 1 + xQueueOverwrite.
+ * Periferico: HAL_ADC_Start_DMA (DMA2 Stream0).
+ * Memoria: colas estaticas (xQueueCreateStatic). */
 
+typedef enum
+{
+	ADC_IOCTL_FLUSH = 0,
+	ADC_IOCTL_START_SAMPLING,
+	ADC_IOCTL_STOP_SAMPLING
+} task_adc_ioctl_cmd_t;
 
-/* Structure of ADC Tx */
+typedef enum
+{
+	ADC_IN_CMD_SAMPLE = 0,
+	ADC_IN_CMD_START,
+	ADC_IN_CMD_STOP,
+	ADC_IN_CMD_FLUSH
+} task_adc_in_cmd_t;
 
+typedef struct
+{
+	task_adc_in_cmd_t	cmd;
+} task_adc_in_dta_t;
+
+typedef struct
+{
+	ADC_HandleTypeDef *	device_id;
+	uint32_t			adc_channel;
+
+	TaskHandle_t		task_adc;
+	QueueHandle_t		queue_in;
+	QueueHandle_t		queue_out;
+
+	SemaphoreHandle_t	sem_dma_done;
+
+	uint16_t			dma_buffer[TASK_ADC_DMA_BUFFER_LEN];
+	BaseType_t			sampling_active;
+
+	/* Static queue storage */
+	uint8_t				queue_in_storage[TASK_ADC_QUEUE_IN_LEN * sizeof(task_adc_in_dta_t)];
+	StaticQueue_t		queue_in_struct;
+
+	uint8_t				queue_out_storage[TASK_ADC_QUEUE_OUT_LEN * sizeof(uint16_t)];
+	StaticQueue_t		queue_out_struct;
+
+	StaticSemaphore_t	sem_dma_done_struct;
+} task_adc_dta_t;
 
 /********************** external data declaration ****************************/
+extern task_adc_dta_t task_adc_dta;
 
 /********************** external functions declaration ***********************/
 
