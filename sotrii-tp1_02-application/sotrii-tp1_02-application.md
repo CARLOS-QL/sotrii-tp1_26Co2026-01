@@ -74,47 +74,6 @@ Se diseñó e implementó un **Device Driver UART** sobre FreeRTOS que cumple lo
 | Almacenamiento | **Colas Input/Output Spooler** + **memoria dinámica** (`pvPortMalloc` / `vPortFree`) |
 | Medición WCET | Contador **DWT** + variables globales + `uart_if_wcet_report()` |
 
-#### Arquitectura del driver
-
-```mermaid
-flowchart LR
-    subgraph client [Tareas cliente]
-        TS[task_sender]
-        TR[task_receiver]
-    end
-
-    subgraph api [API Asíncrona]
-        W[write_uart]
-        RW[read_uart_wait]
-    end
-
-    subgraph spooler [Colas Spooler]
-        QTI[queue_tx_in]
-        QTO[queue_tx_out]
-        QRI[queue_rx_in]
-        QRO[queue_rx_out]
-    end
-
-    subgraph gk [Gatekeepers]
-        GTX[task_uart_tx]
-        GRX[task_uart_rx]
-    end
-
-    subgraph hw [Hardware]
-        ISR[USART2 IRQ]
-        HAL[HAL UART IT]
-    end
-
-    TS --> W
-    TR --> RW --> QRO
-    W --> QTI --> GTX --> HAL
-    HAL --> ISR --> QRO
-    GTX --> QTO
-    GRX --> QRI
-    ISR --> GRX
-    TR --> W
-```
-
 **Flujo TX (asíncrono):**
 
 1. `write_uart()` reserva buffer con `pvPortMalloc`, copia los datos y los encola en **input spooler TX** (`queue_tx_in`). Retorna de inmediato (`HAL_OK` / `HAL_BUSY`).
